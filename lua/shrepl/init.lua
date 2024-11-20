@@ -135,13 +135,11 @@ function M.execute_command(mode)
   -- Construct the output blocks
   local block = {}
   table.insert(block, metadata)
-  table.insert(block, "")
 
   -- Command Block
   table.insert(block, "```sh command:")
   vim.list_extend(block, command_lines)
   table.insert(block, "```")
-  table.insert(block, "")
 
   -- Output Blocks
   if capture_stderr_separately then
@@ -149,22 +147,20 @@ function M.execute_command(mode)
       table.insert(block, "```sh stdout:")
       vim.list_extend(block, stdout_data)
       table.insert(block, "```")
-      table.insert(block, "")
     end
     if #stderr_data > 0 then
       table.insert(block, "```sh stderr:")
       vim.list_extend(block, stderr_data)
       table.insert(block, "```")
-      table.insert(block, "")
     end
   else
     if #stdout_data > 0 then
       table.insert(block, "```sh output:")
       vim.list_extend(block, stdout_data)
       table.insert(block, "```")
-      table.insert(block, "")
     end
   end
+  table.insert(block, "")
 
   -- Reinsert the original command
   vim.list_extend(block, command_lines)
