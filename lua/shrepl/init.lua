@@ -2,12 +2,16 @@
 
 local M = {}
 
+-- ----------------------------------------------------------------------------------------------------
 -- Default configuration
 M.config = {
   reselection_enabled = true,
   capture_stderr_separately = true,
+  shrepl_shell = "zsh",
 }
 
+-- ----------------------------------------------------------------------------------------------------
+-- Setup method
 function M.setup(user_config)
   -- Merge user_config with default config
   M.config = vim.tbl_extend("force", M.config, user_config or {})
@@ -25,10 +29,13 @@ function M.setup(user_config)
   end, { desc = "E[x]ecute Selected Lines in Shell" })
 end
 
+-- ----------------------------------------------------------------------------------------------------
+-- Execution method
 function M.execute_command(mode)
   -- Read configurable options
   local reselection_enabled = M.config.reselection_enabled
   local capture_stderr_separately = M.config.capture_stderr_separately
+  local shrepl_shell = M.config.shrepl_shell
 
   -- Initialize variables locally
   local start_line, end_line
@@ -104,7 +111,7 @@ function M.execute_command(mode)
   end
 
   -- Start the job
-  local job_id = vim.fn.jobstart({ "bash", temp_file }, job_opts)
+  local job_id = vim.fn.jobstart({ shrepl_shell, temp_file }, job_opts)
 
   -- Wait for the job to finish
   vim.fn.jobwait({ job_id }, -1)
@@ -122,12 +129,11 @@ function M.execute_command(mode)
   end
 
   -- Generate metadata header
-  local shell_used = "bash"
   local metadata = string.format(
     "# start=%s end=%s shell=%s exitcode=%s duration=%.3fs",
     start_timestamp,
     end_timestamp,
-    shell_used,
+    shrepl_shell,
     exit_code,
     elapsed
   )
@@ -204,4 +210,5 @@ function M.execute_command(mode)
   end
 end
 
+-- ----------------------------------------------------------------------------------------------------
 return M

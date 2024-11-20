@@ -17,8 +17,9 @@ Use your favorite plugin manager. For example, with Lazy.nvim:
   'Lingnik/shrepl.nvim',
   config = function()
     require('shrepl').setup({
-      reselection_enabled = true,
-      capture_stderr_separately = true,
+      reselection_enabled = true, -- optional; default=true
+      capture_stderr_separately = true, -- optional; default=true
+      shrepl_shell = "zsh", -- optional; default=zsh
     })
   end,
 }
