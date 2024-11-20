@@ -16,7 +16,7 @@ Use your favorite plugin manager. For example, with Lazy.nvim:
 {
   'Lingnik/shrepl.nvim',
   config = function()
-    require('shell_repl').setup({
+    require('shrepl').setup({
       reselection_enabled = true,
       capture_stderr_separately = true,
     })
