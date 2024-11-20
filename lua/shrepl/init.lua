@@ -5,7 +5,7 @@ local M = {}
 -- Default configuration
 M.config = {
   reselection_enabled = true,
-  capture_stderr_seprately = true,
+  capture_stderr_separately = true,
 }
 
 function M.setup(user_config)
@@ -59,15 +59,10 @@ function M.execute_command(mode)
     return
   end
 
-  -- Generate timestamps and block markers
-  local timestamp = os.date("%Y-%m-%d %H:%M:%S")
-  local formatted_command = command:gsub("\n", " \\ ")
-  local block_header = string.format("# %s `%s`", timestamp, formatted_command)
-  local block_start = "``` sh"
-  local block_end = "```"
-
-  -- Record start time
-  local start_time = vim.loop.hrtime()
+  -- Record start time and high-resolution time
+  local start_time = os.time()
+  local start_timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ", start_time)
+  local start_hrtime = vim.loop.hrtime()
 
   -- Execute the command as a script
   local temp_file = os.tmpname()
@@ -88,7 +83,7 @@ function M.execute_command(mode)
     stdout_buffered = true,
     on_stdout = function(_, data)
       if data then
-        stdout_data = data
+        vim.list_extend(stdout_data, data)
       end
     end,
     on_exit = function(_, code)
@@ -100,7 +95,7 @@ function M.execute_command(mode)
     job_opts.stderr_buffered = true
     job_opts.on_stderr = function(_, data)
       if data then
-        stderr_data = data
+        vim.list_extend(stderr_data, data)
       end
     end
   else
@@ -118,40 +113,61 @@ function M.execute_command(mode)
   os.remove(temp_file)
 
   -- Record end time and calculate elapsed time
-  local end_time = vim.loop.hrtime()
-  local elapsed = (end_time - start_time) / 1e9 -- Convert nanoseconds to seconds
+  local end_time = os.time()
+  local end_timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ", end_time)
+  local elapsed = (vim.loop.hrtime() - start_hrtime) / 1e9 -- Convert nanoseconds to seconds
 
-  if not exit_code then
+  if exit_code == nil then
     exit_code = "unknown"
   end
 
-  local metadata = string.format("Exit Code: %s | Time: %.3f sec | Timestamp: %s", exit_code, elapsed, timestamp)
+  -- Generate metadata header
+  local shell_used = "bash"
+  local metadata = string.format(
+    "# start=%s end=%s shell=%s exitcode=%s duration=%.3fs",
+    start_timestamp,
+    end_timestamp,
+    shell_used,
+    exit_code,
+    elapsed
+  )
 
-  -- Construct the output block
+  -- Construct the output blocks
   local block = {}
-  table.insert(block, block_header)
+  table.insert(block, metadata)
+  table.insert(block, "")
 
+  -- Command Block
+  table.insert(block, "```sh command:")
+  vim.list_extend(block, command_lines)
+  table.insert(block, "```")
+  table.insert(block, "")
+
+  -- Output Blocks
   if capture_stderr_separately then
     if #stdout_data > 0 then
-      table.insert(block, "``` stdout")
+      table.insert(block, "```sh stdout:")
       vim.list_extend(block, stdout_data)
       table.insert(block, "```")
+      table.insert(block, "")
     end
     if #stderr_data > 0 then
-      table.insert(block, "``` stderr")
+      table.insert(block, "```sh stderr:")
       vim.list_extend(block, stderr_data)
       table.insert(block, "```")
+      table.insert(block, "")
     end
   else
     if #stdout_data > 0 then
-      table.insert(block, block_start)
+      table.insert(block, "```sh output:")
       vim.list_extend(block, stdout_data)
-      table.insert(block, block_end)
+      table.insert(block, "```")
+      table.insert(block, "")
     end
   end
 
-  table.insert(block, metadata)
-  table.insert(block, "") -- Add a blank line between metadata and input command
+  -- Reinsert the original command
+  vim.list_extend(block, command_lines)
 
   local bufnr = vim.api.nvim_get_current_buf()
 
@@ -160,9 +176,6 @@ function M.execute_command(mode)
   local keep_line = false
   if total_lines == end_line and total_lines == 1 then
     -- Buffer has only one line, append a dummy line to prevent empty buffer
-    -- Note: This is to minimize treesitter errors when the command executed is the only line in the buffer, and the
-    -- buffer is being interpreted as a markdown file, e.g. a file with a .md extension. The error occurs when the
-    -- execution of this plugin's function is undone, e.g. with `u`.
     vim.api.nvim_buf_set_lines(bufnr, -1, -1, false, { "" })
     keep_line = true
   end
@@ -173,12 +186,9 @@ function M.execute_command(mode)
   -- Insert the output block at the original command position
   vim.api.nvim_buf_set_lines(bufnr, start_line - 1, start_line - 1, false, block)
 
-  -- Insert the command lines after the output block
-  local new_command_start = start_line - 1 + #block
-  vim.api.nvim_buf_set_lines(bufnr, new_command_start, new_command_start, false, command_lines)
-
-  -- Move cursor to the start of the command lines
-  vim.api.nvim_win_set_cursor(0, { new_command_start + 1, 0 })
+  -- Move cursor to the start of the reinserted command lines
+  local new_command_start = start_line - 1 + #block - #command_lines + 1
+  vim.api.nvim_win_set_cursor(0, { new_command_start, 0 })
 
   -- Reselect the command lines in visual mode if enabled
   if reselection_enabled and mode == "visual" then
